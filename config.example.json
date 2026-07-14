@@ -1,0 +1,9 @@
+{
+  "root_folder_id": "",
+  "target_subfolder_id": "",
+  "target_subfolder_name": "",
+  "spreadsheet_id": "",
+  "sheet_name": "シート1",
+  "service_account_json_path": "credentials/service_account.json",
+  "claude_model": "sonnet"
+}

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Text Extraction</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
+    h1 { font-size: 20px; }
+    fieldset { margin-bottom: 24px; padding: 16px; }
+    label { display: block; margin-top: 12px; font-size: 14px; color: #444; }
+    input, select { width: 100%; padding: 6px; margin-top: 4px; box-sizing: border-box; }
+    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
+    #subfolder-list { margin-top: 8px; }
+    .warn { color: #b00; font-size: 13px; }
+    .ok { color: #080; font-size: 13px; }
+    pre { background: #f5f5f5; padding: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Text Extraction</h1>
+
+  {% if missing %}
+  <p class="warn">未設定の項目があります: {{ missing|join(', ') }}</p>
+  {% else %}
+  <p class="ok">設定は完了しています。</p>
+  {% endif %}
+
+  <fieldset>
+    <legend>フォルダ設定</legend>
+    <form id="settings-form">
+      <label>サービスアカウントJSONのパス
+        <input type="text" name="service_account_json_path" value="{{ config.service_account_json_path }}">
+      </label>
+      <label>ルートフォルダID
+        <input type="text" id="root_folder_id" name="root_folder_id" value="{{ config.root_folder_id }}">
+      </label>
+      <button type="button" id="load-subfolders">サブフォルダ一覧を取得</button>
+      <div id="subfolder-list"></div>
+
+      <label>処理対象サブフォルダID
+        <input type="text" id="target_subfolder_id" name="target_subfolder_id" value="{{ config.target_subfolder_id }}">
+      </label>
+      <label>処理対象サブフォルダ名（表示用）
+        <input type="text" id="target_subfolder_name" name="target_subfolder_name" value="{{ config.target_subfolder_name }}">
+      </label>
+      <label>出力先スプレッドシートID
+        <input type="text" name="spreadsheet_id" value="{{ config.spreadsheet_id }}">
+      </label>
+      <label>シート名
+        <input type="text" name="sheet_name" value="{{ config.sheet_name }}">
+      </label>
+      <label>Claudeモデル
+        <input type="text" name="claude_model" value="{{ config.claude_model }}">
+      </label>
+      <button type="submit">設定を保存</button>
+    </form>
+  </fieldset>
+
+  <fieldset>
+    <legend>処理実行</legend>
+    <button id="run-button">今すぐ処理実行</button>
+    <pre id="run-log"></pre>
+  </fieldset>
+
+  <script>
+    const settingsForm = document.getElementById('settings-form');
+    settingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(settingsForm);
+      const res = await fetch('/settings', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok) {
+        alert('設定を保存しました');
+        location.reload();
+      } else {
+        alert('保存に失敗しました: ' + JSON.stringify(data));
+      }
+    });
+
+    document.getElementById('load-subfolders').addEventListener('click', async () => {
+      const rootId = document.getElementById('root_folder_id').value.trim();
+      const listDiv = document.getElementById('subfolder-list');
+      if (!rootId) {
+        listDiv.textContent = 'ルートフォルダIDを入力してください';
+        return;
+      }
+      listDiv.textContent = '取得中...';
+      try {
+        const res = await fetch('/api/subfolders?parent_id=' + encodeURIComponent(rootId));
+        const data = await res.json();
+        if (!data.ok) {
+          listDiv.textContent = 'エラー: ' + data.error;
+          return;
+        }
+        if (data.folders.length === 0) {
+          listDiv.textContent = 'サブフォルダが見つかりません';
+          return;
+        }
+        listDiv.innerHTML = '';
+        data.folders.forEach((f) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = f.name;
+          btn.style.marginRight = '6px';
+          btn.style.marginTop = '6px';
+          btn.addEventListener('click', () => {
+            document.getElementById('target_subfolder_id').value = f.id;
+            document.getElementById('target_subfolder_name').value = f.name;
+          });
+          listDiv.appendChild(btn);
+        });
+      } catch (err) {
+        listDiv.textContent = '通信エラー: ' + err;
+      }
+    });
+
+    document.getElementById('run-button').addEventListener('click', async () => {
+      const logEl = document.getElementById('run-log');
+      logEl.textContent = '実行中...';
+      try {
+        const res = await fetch('/run', { method: 'POST' });
+        const data = await res.json();
+        logEl.textContent = (data.logs || []).join('\n');
+        if (!data.ok) {
+          logEl.textContent += '\n\nエラー: ' + data.error;
+        }
+      } catch (err) {
+        logEl.textContent = '通信エラー: ' + err;
+      }
+    });
+  </script>
+</body>
+</html>
