@@ -101,6 +101,11 @@ def extract_from_image(image_path, model="sonnet", timeout=120):
 
     for key in SCHEMA["properties"]:
         if not data.get(key) or data.get(key) == "UNREADABLE":
-            raise ExtractionError(f"項目 '{key}' を画像から読み取れませんでした")
+            denials = envelope.get("permission_denials")
+            raise ExtractionError(
+                f"項目 '{key}' を画像から読み取れませんでした\n"
+                f"  抽出結果全体: {data}\n"
+                f"  permission_denials: {denials}"
+            )
 
     return data
