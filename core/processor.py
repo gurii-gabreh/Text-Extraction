@@ -29,9 +29,17 @@ def run_processing(log=print):
 
     log(f"対象画像 {len(images)} 件を処理します。")
 
+    ext_by_mime = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        for image in images:
-            local_path = Path(tmpdir) / image["name"]
+        for index, image in enumerate(images):
+            ext = ext_by_mime.get(image.get("mimeType"), ".png")
+            local_path = Path(tmpdir) / f"image_{index}{ext}"
             try:
                 drive.download_file(image["id"], str(local_path))
                 data = extract_from_image(str(local_path), model=config["claude_model"])

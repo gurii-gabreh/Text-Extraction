@@ -23,22 +23,33 @@ SCHEMA = {
     ],
 }
 
-PROMPT_TEMPLATE = """Read the image at {image_path}.
+PROMPT_TEMPLATE = """Read the image file located at exactly this path (the path may
+contain spaces; use it verbatim, do not truncate or reinterpret it):
+
+  "{image_path}"
+
 This is a screenshot from a Japanese IT certification exam practice site
-("基本情報技術者試験 過去問道場"). Extract the following, reading top to bottom:
+("基本情報技術者試験 過去問道場"). Extract the following:
 
-- question_number: the line matching the pattern 第◯問 (e.g. 第3問). Ignore
-  metadata lines like 令和◯年度 or ◯問目／◯問.
-- question_text: all lines after the question number line and before the
-  first choice line (lines starting with ア/イ/ウ/エ), excluding metadata
-  lines such as 令和◯年度 or ◯問目／◯問. Join multiple lines with \\n.
-- choice_a / choice_b / choice_c / choice_d: the text of the lines starting
-  with ア / イ / ウ / エ respectively, with the leading kana marker removed.
-- answer: the single character immediately after "正解：" (on the same line
-  or the next line).
+- question_number: the line matching the pattern 第◯問 (e.g. 第3問), near the
+  top of the image.
+- question_text: the question body text below the question number and above
+  the choices (ア/イ/ウ/エ). Exclude metadata lines/labels such as
+  令和◯年度、問◯、◯問目／◯問 or similar, wherever they appear (they may be
+  to the right of the question text rather than on their own line). Join
+  multiple lines with \\n.
+- choice_a / choice_b / choice_c / choice_d: the text of the four answer
+  choices, each labeled with ア / イ / ウ / エ (the labels may appear inside
+  boxes to the left of each choice's text). Return the choice text only,
+  without the kana label.
+- answer: the single character shown immediately next to the "正解：" label.
+  This label appears after the choices, near a "分類：" label and a
+  "解説：" label. Do NOT use the text next to "あなたの解答：" — that is a
+  different, unrelated value and must be ignored.
 
-Stop reading once you reach a line starting with 分類： or 解説： — do not
-use any text from those lines or anything after them.
+Do not extract any field's value from the content under the 分類： or 解説：
+labels themselves — those sections only exist to help you locate 正解：, not
+as a source of data. Stop reading entirely once you pass the 解説： label.
 
 If a value cannot be determined, use the exact string "UNREADABLE" for that
 field. Output only the extracted data matching the provided schema."""
