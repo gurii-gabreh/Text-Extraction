@@ -70,6 +70,7 @@ def extract_from_image(image_path, model="sonnet", timeout=120):
         json.dumps(SCHEMA),
         "--tools",
         "Read",
+        "--dangerously-skip-permissions",
         "--model",
         model,
     ]
