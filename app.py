@@ -51,8 +51,13 @@ def api_subfolders():
 @app.route("/run", methods=["POST"])
 def run():
     logs = []
+
+    def log(msg):
+        print(msg, flush=True)
+        logs.append(msg)
+
     try:
-        result = run_processing(log=lambda msg: logs.append(msg))
+        result = run_processing(log=log)
         return jsonify({"ok": True, "result": result, "logs": logs})
     except Exception as e:
         logs.append(f"エラー: {e}")
