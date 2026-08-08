@@ -14,10 +14,51 @@
     .warn { color: #b00; font-size: 13px; }
     .ok { color: #080; font-size: 13px; }
     pre { background: #f5f5f5; padding: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; }
+    .orch-diagram { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .orch-account { border: 1px dashed #999; padding: 12px; border-radius: 6px; flex: 1; min-width: 220px; }
+    .orch-title { font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #555; }
+    .orch-room { border: 1px solid #888; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 13px; background: #fafafa; }
+    .orch-room.worker { background: #eef6ff; }
+    .orch-room.shared { background: #fff6e5; max-width: 320px; margin: 8px auto 0; text-align: center; }
+    .orch-arrow { font-size: 12px; color: #666; text-align: center; padding: 0 8px; white-space: nowrap; }
+    .orch-arrow-down { font-size: 12px; color: #666; text-align: center; margin: 4px 0; }
+    .orch-btn { margin-top: 6px; padding: 4px 8px; font-size: 12px; }
   </style>
 </head>
 <body>
   <h1>Text Extraction</h1>
+
+  <button type="button" id="orch-toggle">オーケストレーション構成の説明を表示</button>
+  <div id="orchestration-panel" style="display:none; margin-top:12px; margin-bottom:24px; padding:16px; border:1px solid #ccc; border-radius:6px;">
+    <p style="font-size:13px; color:#444;">
+      複数のClaudeアカウントを使って、司令塔(マネージャルーム)が相談を受けつつ、
+      実装作業を専用の作業ルームに振り分ける構成です。今後、他のアプリでも同様の構成を使う想定です。
+    </p>
+    <div class="orch-diagram">
+      <div class="orch-account">
+        <div class="orch-title">メインアカウント（司令塔）</div>
+        <div class="orch-room manager">マネージャルーム<br><small>ユーザーとの相談・タスク管理</small></div>
+      </div>
+      <div class="orch-arrow">依頼文を貼り付け<br>（または APIトリガー）</div>
+      <div class="orch-account">
+        <div class="orch-title">サブアカウント（このアカウント）</div>
+        <div class="orch-room manager">
+          マネージャルーム<br><small>タスクの受付・作業ルームへの振り分け</small><br>
+          <button type="button" class="orch-btn" data-template="manager">この部屋への依頼文を表示</button>
+        </div>
+        <div class="orch-arrow-down">SendMessageで依頼</div>
+        <div class="orch-room worker">
+          作業ルーム<br><small>実装作業を担当</small><br>
+          <button type="button" class="orch-btn" data-template="worker">この部屋への依頼文を表示</button>
+        </div>
+      </div>
+    </div>
+    <div class="orch-arrow-down">コミット・プッシュ／status.json への結果記録</div>
+    <div class="orch-room shared">共有GitHubリポジトリ<br><small>結果の確認・アカウント間の引き継ぎ</small></div>
+
+    <textarea id="orch-request-text" readonly rows="8" style="width:100%; margin-top:16px; box-sizing:border-box;"></textarea>
+    <button type="button" id="orch-copy-text" style="margin-top:8px;">表示中の依頼文をコピー</button>
+  </div>
 
   {% if missing %}
   <p class="warn">未設定の項目があります: {{ missing|join(', ') }}</p>
@@ -78,6 +119,63 @@
   </fieldset>
 
   <script>
+    document.getElementById('orch-toggle').addEventListener('click', () => {
+      const panel = document.getElementById('orchestration-panel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    const orchTemplates = {
+      manager: `[マネージャルームへの依頼文テンプレート]
+
+以下のタスクの実装を進めてください。実装作業はこのルームで直接行わず、作業ルーム（専用の実装セッション）に振り分けて進めてください。
+
+■ 対象リポジトリ: <リポジトリ名>
+■ 対象ブランチ: <ブランチ名>
+■ タスク内容: <タスクの詳細>
+■ 完了条件: <完了とみなす基準>
+
+作業ルームでの作業が完了したら（またはエラーが発生したら）、リポジトリに結果を記録し、コミット・プッシュするよう指示してください。`,
+      worker: `[作業ルームへの依頼文テンプレート]
+
+以下のタスクを実装してください。
+
+■ 対象リポジトリ: <リポジトリ名>
+■ 対象ブランチ: <ブランチ名>
+■ タスク内容: <タスクの詳細>
+
+作業が完了したら、変更をコミット・プッシュし、リポジトリ直下の status.json に以下の形式で結果を記録してください。
+
+{
+  "status": "done または error",
+  "summary": "作業内容の要約",
+  "timestamp": "ISO8601形式の日時"
+}
+
+実装前に不明点があれば、進めずに質問してください。`,
+    };
+
+    document.querySelectorAll('.orch-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.template;
+        document.getElementById('orch-request-text').value = orchTemplates[key];
+      });
+    });
+
+    document.getElementById('orch-copy-text').addEventListener('click', async () => {
+      const textarea = document.getElementById('orch-request-text');
+      if (!textarea.value) {
+        alert('先に図の中のボタンから依頼文を表示してください');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        alert('依頼文をコピーしました');
+      } catch (err) {
+        textarea.select();
+        alert('自動コピーに失敗しました。手動で選択してコピーしてください。');
+      }
+    });
+
     const settingsForm = document.getElementById('settings-form');
     settingsForm.addEventListener('submit', async (e) => {
       e.preventDefault();
