@@ -52,8 +52,23 @@
       <label>Claudeモデル
         <input type="text" name="claude_model" value="{{ config.claude_model }}">
       </label>
+      <label>定時実行(Routine)の実行時刻（時、0〜23）
+        <input type="number" id="batch_schedule_hour" name="batch_schedule_hour" min="0" max="23" value="{{ config.batch_schedule_hour }}">
+      </label>
       <button type="submit">設定を保存</button>
     </form>
+  </fieldset>
+
+  <fieldset>
+    <legend>定時実行(Routine)スケジュール変更</legend>
+    <p>
+      ここでの実行時刻の変更はこのアプリの設定を保存するだけで、
+      Claude Routine自体のスケジュールは自動更新されません。
+      下のボタンで依頼文を作成し、Claudeに渡してRoutineの変更を依頼してください。
+    </p>
+    <button type="button" id="make-request-text">Routine変更依頼文を作成</button>
+    <textarea id="request-text" readonly rows="4" style="width:100%; margin-top:8px; box-sizing:border-box;"></textarea>
+    <button type="button" id="copy-request-text" style="margin-top:8px;">依頼文をコピー</button>
   </fieldset>
 
   <fieldset>
@@ -111,6 +126,27 @@
         });
       } catch (err) {
         listDiv.textContent = '通信エラー: ' + err;
+      }
+    });
+
+    document.getElementById('make-request-text').addEventListener('click', () => {
+      const hour = document.getElementById('batch_schedule_hour').value.trim() || '9';
+      const text = `text-extractionリポジトリの定時実行Routineのスケジュールを、毎日${hour}時（日本時間）に変更してください。`;
+      document.getElementById('request-text').value = text;
+    });
+
+    document.getElementById('copy-request-text').addEventListener('click', async () => {
+      const textarea = document.getElementById('request-text');
+      if (!textarea.value) {
+        alert('先に「Routine変更依頼文を作成」を押してください');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        alert('依頼文をコピーしました');
+      } catch (err) {
+        textarea.select();
+        alert('自動コピーに失敗しました。手動で選択してコピーしてください。');
       }
     });
 

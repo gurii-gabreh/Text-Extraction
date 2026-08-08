@@ -54,7 +54,11 @@ python app.py
 
 設定後、「今すぐ処理実行」ボタンで手動実行できます。
 
-## 5. 定時実行（cron）の設定
+## 5. 定時実行の設定
+
+定時実行の方式は2通りあります。どちらか一方を選んでください（二重実行を避けるため）。
+
+### 5-1. MacBookのcronから実行
 
 Webアプリを常時起動しておく必要はありません。`batch.py` を直接cronから呼び出します。
 
@@ -69,6 +73,19 @@ crontab -e
 ```
 
 `logs/` フォルダは事前に作成しておいてください（`mkdir logs`）。
+
+この方式では、`credentials/` フォルダのサービスアカウントJSONファイルをそのまま使用します。
+
+### 5-2. Claude Code RemoteのRoutine（クラウド定時トリガー）から実行
+
+MacBookがスリープ・オフの状態でも定時実行したい場合は、Claude Code RemoteのRoutine機能を使ってクラウド上で実行できます。クラウド実行にはローカルの認証情報ファイルが存在しないため、サービスアカウントJSONの中身を環境変数 `GOOGLE_SERVICE_ACCOUNT_JSON` に設定してください（`get_credentials()` は環境変数が設定されていればそちらを優先し、なければ従来通りファイルパスから読み込みます）。
+
+1. Claude Code RemoteでEnvironmentを用意し、環境変数 `GOOGLE_SERVICE_ACCOUNT_JSON` にサービスアカウントJSONファイルの中身をそのまま設定する
+2. そのEnvironment・このリポジトリに対して、`pip install -r requirements.txt` の後に `python batch.py` を実行するRoutine（定時トリガー）を作成する
+3. Web画面のヘッダーにある「定時実行(Routine)の実行時刻」欄で希望の時刻を設定・保存できます。ただし、この欄はこのアプリ内の表示・記録用であり、Routine自体のスケジュールは自動更新されません。時刻を変更したい場合は「Routine変更依頼文を作成」ボタンで依頼文を作成し、それをClaudeに渡してRoutineのスケジュール変更を依頼してください
+4. クラウド実行はユーザーのClaude Pro/Maxプランの利用上限（レートリミット）を消費します。通常のClaude Code利用と共有される点に注意してください
+
+なお、クラウド実行はユーザーのプラン利用上限を消費するため、常時起動しているMacがある場合は5-1のcron方式を継続するのも選択肢です。
 
 ## 6. 処理内容
 

@@ -1,3 +1,6 @@
+import json
+import os
+
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -10,8 +13,16 @@ SCOPES = [
 FOLDER_MIME = "application/vnd.google-apps.folder"
 COMPLETED_FOLDER_NAME = "処理済み"
 
+SERVICE_ACCOUNT_JSON_ENV_VAR = "GOOGLE_SERVICE_ACCOUNT_JSON"
+
 
 def get_credentials(service_account_json_path):
+    env_value = os.environ.get(SERVICE_ACCOUNT_JSON_ENV_VAR)
+    if env_value:
+        info = json.loads(env_value)
+        return service_account.Credentials.from_service_account_info(
+            info, scopes=SCOPES
+        )
     return service_account.Credentials.from_service_account_file(
         service_account_json_path, scopes=SCOPES
     )

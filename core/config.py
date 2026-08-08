@@ -11,6 +11,7 @@ DEFAULT_CONFIG = {
     "sheet_name": "シート1",
     "service_account_json_path": "credentials/service_account.json",
     "claude_model": "sonnet",
+    "batch_schedule_hour": "9",
 }
 
 REQUIRED_KEYS = [

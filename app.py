@@ -24,6 +24,7 @@ def settings():
         "sheet_name",
         "service_account_json_path",
         "claude_model",
+        "batch_schedule_hour",
     ]:
         value = request.form.get(key)
         if value is not None and value != "":
