@@ -100,13 +100,4 @@ def extract_from_image(image_path, model="sonnet", timeout=120):
     except json.JSONDecodeError as e:
         raise ExtractionError(f"抽出結果がJSONとして解釈できません: {e}\nresult={result_text}")
 
-    for key in SCHEMA["properties"]:
-        if not data.get(key) or data.get(key) == "UNREADABLE":
-            denials = envelope.get("permission_denials")
-            raise ExtractionError(
-                f"項目 '{key}' を画像から読み取れませんでした\n"
-                f"  抽出結果全体: {data}\n"
-                f"  permission_denials: {denials}"
-            )
-
     return data
