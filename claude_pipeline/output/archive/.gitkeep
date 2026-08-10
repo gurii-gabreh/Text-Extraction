@@ -1,0 +1,2 @@
+実行のたびの output/latest.json のコピーを <実行日時>.json として保存する場所(任意)。
+詳細は claude_pipeline/README.md を参照。
