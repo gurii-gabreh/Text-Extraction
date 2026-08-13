@@ -1,7 +1,9 @@
 import json
+import os
 from pathlib import Path
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
+CONFIG_JSON_ENV_VAR = "TEXT_EXTRACTION_CONFIG_JSON"
 
 DEFAULT_CONFIG = {
     "root_folder_id": "",
@@ -23,11 +25,14 @@ REQUIRED_KEYS = [
 
 
 def load_config():
+    config = dict(DEFAULT_CONFIG)
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return {**DEFAULT_CONFIG, **data}
-    return dict(DEFAULT_CONFIG)
+            config.update(json.load(f))
+    env_value = os.environ.get(CONFIG_JSON_ENV_VAR)
+    if env_value:
+        config.update(json.loads(env_value))
+    return config
 
 
 def save_config(config):
