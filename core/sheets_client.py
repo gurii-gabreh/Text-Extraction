@@ -1,6 +1,7 @@
 from googleapiclient.discovery import build
 
-HEADER = ["問題番号", "問題文", "選択肢ア", "選択肢イ", "選択肢ウ", "選択肢エ", "正解", "元ファイル名"]
+OLD_HEADER = ["問題番号", "問題文", "選択肢ア", "選択肢イ", "選択肢ウ", "選択肢エ", "正解", "元ファイル名"]
+HEADER = OLD_HEADER + ["問題文画像"]
 
 
 class SheetsClient:
@@ -10,9 +11,18 @@ class SheetsClient:
 
     def ensure_header(self, sheet_name):
         result = self.service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id, range=f"{sheet_name}!A1:H1"
+            spreadsheetId=self.spreadsheet_id, range=f"{sheet_name}!A1:I1"
         ).execute()
-        if not result.get("values"):
+        existing = result.get("values")
+        if not existing:
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"{sheet_name}!A1",
+                valueInputOption="RAW",
+                body={"values": [HEADER]},
+            ).execute()
+        elif existing[0] == OLD_HEADER:
+            # 既存シートに新しい列を追記する（既存データの列はそのまま変更しない）
             self.service.spreadsheets().values().update(
                 spreadsheetId=self.spreadsheet_id,
                 range=f"{sheet_name}!A1",

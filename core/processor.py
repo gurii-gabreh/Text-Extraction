@@ -1,13 +1,16 @@
 import tempfile
 from pathlib import Path
 
+from PIL import Image
+
 from .claude_extractor import SCHEMA, ExtractionError, extract_from_image
 from .config import load_config, missing_required_keys
 from .drive_client import DriveClient, get_credentials
 from .sheets_client import SheetsClient
 
-FIELDS = list(SCHEMA["properties"].keys())
+TEXT_FIELDS = [k for k in SCHEMA["properties"] if k != "image_regions"]
 CHOICE_FIELDS = ["choice_a", "choice_b", "choice_c", "choice_d"]
+CROP_MARGIN_PERCENT = 4
 
 
 def _is_readable(value):
@@ -15,7 +18,7 @@ def _is_readable(value):
 
 
 def _is_complete(data):
-    return all(_is_readable(data.get(key)) for key in FIELDS)
+    return all(_is_readable(data.get(key)) for key in TEXT_FIELDS)
 
 
 def _choices_match(a, b):
@@ -30,7 +33,7 @@ def _choices_match(a, b):
 
 def _merge(primary, partner):
     merged = {}
-    for key in FIELDS:
+    for key in TEXT_FIELDS:
         va = primary.get(key)
         vb = partner.get(key)
         if _is_readable(va):
@@ -39,7 +42,45 @@ def _merge(primary, partner):
             merged[key] = vb
         else:
             merged[key] = va or "UNREADABLE"
+
+    if primary.get("image_regions"):
+        merged["image_regions"] = primary["image_regions"]
+        merged["image_source"] = "primary"
+    elif partner.get("image_regions"):
+        merged["image_regions"] = partner["image_regions"]
+        merged["image_source"] = "partner"
+    else:
+        merged["image_regions"] = []
+        merged["image_source"] = None
     return merged
+
+
+def _combined_crop_box(image_regions, width, height):
+    top = min(r["top"] for r in image_regions)
+    left = min(r["left"] for r in image_regions)
+    bottom = max(r["bottom"] for r in image_regions)
+    right = max(r["right"] for r in image_regions)
+
+    top = max(0, top - CROP_MARGIN_PERCENT)
+    left = max(0, left - CROP_MARGIN_PERCENT)
+    bottom = min(100, bottom + CROP_MARGIN_PERCENT)
+    right = min(100, right + CROP_MARGIN_PERCENT)
+
+    return (
+        int(left / 100 * width),
+        int(top / 100 * height),
+        int(right / 100 * width),
+        int(bottom / 100 * height),
+    )
+
+
+def _crop_and_upload(drive, source_path, image_regions, images_folder_id, filename):
+    with Image.open(source_path) as img:
+        box = _combined_crop_box(image_regions, img.width, img.height)
+        cropped = img.crop(box)
+        crop_path = Path(source_path).parent / f"tmp_{filename}"
+        cropped.save(crop_path)
+    return drive.upload_public_image(str(crop_path), images_folder_id, filename)
 
 
 def run_processing(log=print):
@@ -54,6 +95,7 @@ def run_processing(log=print):
     sheets.ensure_header(config["sheet_name"])
 
     completed_folder_id = drive.find_or_create_completed_folder(config["root_folder_id"])
+    images_folder_id = drive.find_or_create_images_folder(config["root_folder_id"])
 
     images = drive.list_images(config["target_subfolder_id"])
     result = {"total": len(images), "success": 0, "failed": []}
@@ -124,6 +166,25 @@ def run_processing(log=print):
                 log(f"SKIP (抽出失敗): {image['name']} - {reason}")
                 continue
 
+            image_url = ""
+            image_regions = merged.get("image_regions")
+            if image_regions:
+                if partner_index is None:
+                    image_source_index = index
+                else:
+                    image_source_index = index if merged.get("image_source") == "primary" else partner_index
+                try:
+                    crop_filename = f"crop_{Path(images[image_source_index]['name']).stem}.png"
+                    image_url = _crop_and_upload(
+                        drive,
+                        local_path_for(image_source_index),
+                        image_regions,
+                        images_folder_id,
+                        crop_filename,
+                    )
+                except Exception as e:
+                    log(f"WARN: 画像切り抜き・アップロードに失敗しました（テキストのみ登録します）: {image['name']} - {e}")
+
             try:
                 source_name = image["name"]
                 if partner_index is not None:
@@ -138,6 +199,7 @@ def run_processing(log=print):
                         merged["choice_d"],
                         merged["answer"],
                         source_name,
+                        image_url,
                     ],
                     config["sheet_name"],
                 )

@@ -3,7 +3,7 @@ import os
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -12,6 +12,7 @@ SCOPES = [
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 COMPLETED_FOLDER_NAME = "処理済み"
+IMAGES_FOLDER_NAME = "問題文画像"
 
 SERVICE_ACCOUNT_JSON_ENV_VAR = "GOOGLE_SERVICE_ACCOUNT_JSON"
 
@@ -58,9 +59,9 @@ class DriveClient:
             while not done:
                 _, done = downloader.next_chunk()
 
-    def find_or_create_completed_folder(self, root_folder_id):
+    def find_or_create_folder(self, parent_id, name):
         query = (
-            f"'{root_folder_id}' in parents and name='{COMPLETED_FOLDER_NAME}' "
+            f"'{parent_id}' in parents and name='{name}' "
             f"and mimeType='{FOLDER_MIME}' and trashed=false"
         )
         result = self.service.files().list(q=query, fields="files(id,name)").execute()
@@ -68,12 +69,18 @@ class DriveClient:
         if files:
             return files[0]["id"]
         metadata = {
-            "name": COMPLETED_FOLDER_NAME,
+            "name": name,
             "mimeType": FOLDER_MIME,
-            "parents": [root_folder_id],
+            "parents": [parent_id],
         }
         folder = self.service.files().create(body=metadata, fields="id").execute()
         return folder["id"]
+
+    def find_or_create_completed_folder(self, root_folder_id):
+        return self.find_or_create_folder(root_folder_id, COMPLETED_FOLDER_NAME)
+
+    def find_or_create_images_folder(self, root_folder_id):
+        return self.find_or_create_folder(root_folder_id, IMAGES_FOLDER_NAME)
 
     def move_file(self, file_id, from_folder_id, to_folder_id):
         self.service.files().update(
@@ -82,3 +89,15 @@ class DriveClient:
             removeParents=from_folder_id,
             fields="id,parents",
         ).execute()
+
+    def upload_public_image(self, local_path, parent_folder_id, filename):
+        metadata = {"name": filename, "parents": [parent_folder_id]}
+        media = MediaFileUpload(local_path)
+        file = self.service.files().create(
+            body=metadata, media_body=media, fields="id"
+        ).execute()
+        file_id = file["id"]
+        self.service.permissions().create(
+            fileId=file_id, body={"type": "anyone", "role": "reader"}
+        ).execute()
+        return f"https://drive.google.com/uc?export=view&id={file_id}"
